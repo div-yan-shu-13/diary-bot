@@ -8,7 +8,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from pathlib import Path
 from zoneinfo import ZoneInfo
+
+from dotenv import load_dotenv
+
+# Load .env file from the project root (if it exists)
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from groq import AsyncGroq
