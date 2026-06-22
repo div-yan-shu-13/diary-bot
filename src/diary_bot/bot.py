@@ -60,6 +60,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Silence noisy polling logs
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 
 def _is_awaiting(user_data: dict | None) -> bool:
     """Check if the user is in an awaiting state for follow-up text input."""
