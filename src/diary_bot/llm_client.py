@@ -137,17 +137,18 @@ class LLMClient:
     ) -> str:
         """Build the prompt for diary generation."""
         parts: list[str] = []
+        num_inputs = len(inputs)
         parts.append(
-            f"Write a short first-person diary entry in a {tone.value} tone.\n\n"
+            f"Write a first-person diary entry in a {tone.value} tone.\n\n"
             "CONTEXT: The items below are things I did, felt, or experienced today. "
             "I jotted them down quickly as they happened. They are MY OWN experiences — "
             "not messages from other people.\n\n"
             "RULES:\n"
             "- Write as ME (first person). I did these things.\n"
+            f"- There are {num_inputs} notes below. You MUST mention or reference EVERY SINGLE ONE. Do not skip any.\n"
             "- ONLY include what is stated. Do NOT invent details, people, or events.\n"
             "- Do NOT treat inputs as messages received from others — they are my own notes about my day.\n"
             "- Do NOT add filler, speculation, or backstory.\n"
-            "- If there are few inputs, write just 2-3 sentences. Short is fine.\n"
             "- Never mention timestamps, notes, texts, or messages."
         )
 
@@ -164,7 +165,7 @@ class LLMClient:
                 parts.append(f"- {mood.content}")
 
         parts.append(
-            "\n\nDiary entry:"
+            f"\n\nNow write the diary entry. Remember: cover ALL {num_inputs} notes above, no exceptions. Write in flowing prose, not bullets."
         )
         return "\n".join(parts)
 
