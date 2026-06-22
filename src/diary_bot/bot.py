@@ -6,7 +6,6 @@ sets up the scheduler, initializes the database, and starts long polling.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -99,17 +98,33 @@ def main() -> None:
     # Build the user filter for authorization (Req 13.1, 13.2)
     user_filter = filters.User(user_id=config.authorized_user_id)
 
-    # 2. Run async initialization and start polling
-    asyncio.run(_async_main(config, user_filter))
+    # 2. Build the Telegram Application
+    application = Application.builder().token(config.bot_token).build()
+
+    # Store config and user_filter for post_init
+    application.bot_data["_config"] = config
+    application.bot_data["_user_filter"] = user_filter
+
+    # Register post_init to do async setup
+    application.post_init = _post_init
+
+    # Register handlers (sync registration)
+    _register_handlers(application, user_filter)
+
+    # 3. Start polling (handles signals and shutdown gracefully)
+    logger.info("Starting bot polling...")
+    application.run_polling()
 
 
-async def _async_main(config, user_filter) -> None:  # noqa: ANN001
-    """Async initialization and bot startup."""
-    # 2. Initialize the database
+async def _post_init(application: Application) -> None:
+    """Async initialization that runs after the Application is built."""
+    config = application.bot_data["_config"]
+
+    # Initialize the database
     db = await init_db(config.database_path)
     logger.info("Database initialized at: %s", config.database_path)
 
-    # 3. Create services
+    # Create services
     timezone = ZoneInfo(config.timezone)
     groq_client = AsyncGroq(api_key=config.groq_api_key)
 
@@ -123,15 +138,12 @@ async def _async_main(config, user_filter) -> None:  # noqa: ANN001
     memory_service = MemoryService(repo, llm_client, config.authorized_user_id)
     reminder_service = ReminderService(
         authorized_user_id=config.authorized_user_id,
-        threshold_hours=None,  # Will be set from user settings
+        threshold_hours=None,
     )
     export_service = ExportService(repo)
     delete_service = DeleteService(repo)
 
-    # 4. Build the Telegram Application
-    application = Application.builder().token(config.bot_token).build()
-
-    # 5. Create scheduler service (needs the bot instance)
+    # Create scheduler service
     scheduler = AsyncIOScheduler()
     scheduler_service = SchedulerService(
         scheduler=scheduler,
@@ -141,7 +153,7 @@ async def _async_main(config, user_filter) -> None:  # noqa: ANN001
         bot=application.bot,
     )
 
-    # 6. Store HandlerContext in bot_data
+    # Store HandlerContext in bot_data
     handler_ctx = HandlerContext(
         input_service=input_service,
         diary_service=diary_service,
@@ -151,85 +163,38 @@ async def _async_main(config, user_filter) -> None:  # noqa: ANN001
         repository=repo,
     )
     application.bot_data["handler_ctx"] = handler_ctx
+    application.bot_data["_db"] = db
+    application.bot_data["_scheduler"] = scheduler
 
-    # 7. Register command handlers (with user authorization filter)
-    application.add_handler(
-        CommandHandler("start", handle_start, filters=user_filter)
-    )
-    application.add_handler(
-        CommandHandler("help", handle_help, filters=user_filter)
-    )
-    application.add_handler(
-        CommandHandler("diary", handle_diary_cmd, filters=user_filter)
-    )
-    application.add_handler(
-        CommandHandler("tone", handle_tone_cmd, filters=user_filter)
-    )
-    application.add_handler(
-        CommandHandler("week", handle_week_cmd, filters=user_filter)
-    )
-    application.add_handler(
-        CommandHandler("export", handle_export_cmd, filters=user_filter)
-    )
-    application.add_handler(
-        CommandHandler("delete", handle_delete_cmd, filters=user_filter)
-    )
-    application.add_handler(
-        CommandHandler("settings", handle_settings_cmd, filters=user_filter)
-    )
+    # Load user settings and configure scheduler
+    user_settings = await repo.get_settings()
+    if user_settings.inactivity_threshold_hours is not None:
+        reminder_service.update_threshold(user_settings.inactivity_threshold_hours)
 
-    # 8. Register message handlers
-    # Text handler checks awaiting state first, then falls through to normal handling
+    scheduler.start()
+    await scheduler_service.setup_schedules(user_settings)
+    logger.info("Scheduler and services initialized.")
+
+
+def _register_handlers(application: Application, user_filter) -> None:  # noqa: ANN001
+    """Register all handlers with the Application."""
+    application.add_handler(CommandHandler("start", handle_start, filters=user_filter))
+    application.add_handler(CommandHandler("help", handle_help, filters=user_filter))
+    application.add_handler(CommandHandler("diary", handle_diary_cmd, filters=user_filter))
+    application.add_handler(CommandHandler("tone", handle_tone_cmd, filters=user_filter))
+    application.add_handler(CommandHandler("week", handle_week_cmd, filters=user_filter))
+    application.add_handler(CommandHandler("export", handle_export_cmd, filters=user_filter))
+    application.add_handler(CommandHandler("delete", handle_delete_cmd, filters=user_filter))
+    application.add_handler(CommandHandler("settings", handle_settings_cmd, filters=user_filter))
+
     application.add_handler(
         MessageHandler(
             user_filter & filters.TEXT & ~filters.COMMAND,
             _handle_text_with_awaiting_check,
         )
     )
-
-    # Voice handler
-    application.add_handler(
-        MessageHandler(user_filter & filters.VOICE, handle_voice)
-    )
-
-    # Callback query handler (inline buttons)
+    application.add_handler(MessageHandler(user_filter & filters.VOICE, handle_voice))
     application.add_handler(CallbackQueryHandler(handle_callback_query))
-
-    # 9. Load user settings and configure scheduler
-    user_settings = await repo.get_settings()
-
-    # Update reminder service with stored threshold
-    if user_settings.inactivity_threshold_hours is not None:
-        reminder_service.update_threshold(user_settings.inactivity_threshold_hours)
-
-    # Start the scheduler
-    scheduler.start()
-    logger.info("Scheduler started.")
-
-    # Set up scheduled jobs from user settings
-    await scheduler_service.setup_schedules(user_settings)
-    logger.info("Scheduled jobs configured.")
-
-    # 10. Start long polling
-    logger.info("Starting bot polling...")
-    await application.initialize()
-    await application.start()
-    await application.updater.start_polling()
-
-    # Keep running until interrupted
-    try:
-        # Block until a stop signal is received
-        stop_event = asyncio.Event()
-        await stop_event.wait()
-    except (KeyboardInterrupt, SystemExit):
-        pass
-    finally:
-        scheduler.shutdown(wait=False)
-        await application.updater.stop()
-        await application.stop()
-        await application.shutdown()
-        await db.close()
-        logger.info("Bot shut down gracefully.")
 
 
 if __name__ == "__main__":
