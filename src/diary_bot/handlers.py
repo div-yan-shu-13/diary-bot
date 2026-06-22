@@ -172,27 +172,37 @@ async def handle_diary_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 async def handle_tone_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /tone command to view or set the writing tone."""
+    """Handle /tone command — show current tone with inline buttons to change it."""
     ctx = _get_ctx(context)
     message = update.message
     if message is None:
         return
 
-    args = context.args or []
+    current_tone = await ctx.diary_service.get_tone()
 
-    if not args:
-        # Show current tone
-        current_tone = await ctx.diary_service.get_tone()
-        await message.reply_text(f"Current tone: *{current_tone.value}*", parse_mode="Markdown")
-        return
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                f"{'✓ ' if current_tone.value == 'poetic' else ''}Poetic",
+                callback_data="tone:poetic",
+            ),
+            InlineKeyboardButton(
+                f"{'✓ ' if current_tone.value == 'casual' else ''}Casual",
+                callback_data="tone:casual",
+            ),
+            InlineKeyboardButton(
+                f"{'✓ ' if current_tone.value == 'reflective' else ''}Reflective",
+                callback_data="tone:reflective",
+            ),
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # Set new tone
-    result = await ctx.diary_service.set_tone(args[0])
-
-    if isinstance(result, Ok):
-        await message.reply_text(f"✓ Tone set to *{result.value.value}*", parse_mode="Markdown")
-    else:
-        await message.reply_text(result.error.message)
+    await message.reply_text(
+        f"Current tone: *{current_tone.value}*\n\nTap to change:",
+        parse_mode="Markdown",
+        reply_markup=reply_markup,
+    )
 
 
 async def handle_week_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
