@@ -110,7 +110,7 @@ class LLMClient:
             response = await self._groq.chat.completions.create(
                 model="llama-3.1-8b-instant",
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.7,
+                temperature=0.4,
                 max_tokens=2048,
             )
             content = response.choices[0].message.content
@@ -138,7 +138,14 @@ class LLMClient:
         """Build the prompt for diary generation."""
         parts: list[str] = []
         parts.append(
-            f"You are a personal diary writer. Write a diary entry in a {tone.value} tone."
+            f"You are a personal diary writer. Write a first-person diary entry in a {tone.value} tone.\n\n"
+            "CRITICAL RULES:\n"
+            "- ONLY write about what is explicitly mentioned in the inputs below.\n"
+            "- Do NOT invent, assume, or hallucinate any details, events, people, or feelings that are not directly stated.\n"
+            "- Do NOT add context, backstory, or speculation about what the user might have done.\n"
+            "- If there is very little input, write a short entry. A single input means a short entry — that's fine.\n"
+            "- Write as if YOU are the person (first person). The inputs are YOUR notes to yourself.\n"
+            "- Keep it genuine and grounded in exactly what was shared."
         )
 
         if special_instructions:
@@ -156,8 +163,9 @@ class LLMClient:
                 parts.append(f"- [{time_str}]: {mood.content}")
 
         parts.append(
-            "\n\nWrite a cohesive, personal diary entry incorporating all these moments "
-            "and feelings. Do not use bullet points; write in flowing prose."
+            "\n\nWrite the diary entry using ONLY the information above. "
+            "Do not use bullet points; write in flowing prose. "
+            "If there's only one input, keep the entry brief — a few sentences is perfectly fine."
         )
         return "\n".join(parts)
 
