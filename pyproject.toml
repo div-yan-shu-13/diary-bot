@@ -1,0 +1,29 @@
+[project]
+name = "diary-bot"
+version = "0.1.0"
+description = "A Telegram micro-journaling bot that creates AI-written diary entries from daily inputs"
+requires-python = ">=3.11"
+dependencies = [
+    "python-telegram-bot>=20.0",
+    "aiosqlite>=0.19.0",
+    "APScheduler>=3.10.0",
+    "groq>=0.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "hypothesis>=6.0.0",
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
