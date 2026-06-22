@@ -107,6 +107,7 @@ def main() -> None:
 
     # Register post_init to do async setup
     application.post_init = _post_init
+    application.post_shutdown = _post_shutdown
 
     # Register handlers (sync registration)
     _register_handlers(application, user_filter)
@@ -174,6 +175,19 @@ async def _post_init(application: Application) -> None:
     scheduler.start()
     await scheduler_service.setup_schedules(user_settings)
     logger.info("Scheduler and services initialized.")
+
+
+async def _post_shutdown(application: Application) -> None:
+    """Clean up resources after the Application shuts down."""
+    scheduler = application.bot_data.get("_scheduler")
+    if scheduler and scheduler.running:
+        scheduler.shutdown(wait=False)
+
+    db = application.bot_data.get("_db")
+    if db:
+        await db.close()
+
+    logger.info("Bot shut down gracefully.")
 
 
 def _register_handlers(application: Application, user_filter) -> None:  # noqa: ANN001
