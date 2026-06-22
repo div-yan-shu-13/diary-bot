@@ -53,7 +53,7 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     """Send a welcome message when the user starts the bot."""
     welcome = (
         "Welcome to your personal Diary Bot! 📔\n\n"
-        "Send me text messages or voice notes throughout the day, "
+        "Send me text messages or voice notes (up to 60s) throughout the day, "
         "and I'll help you create a polished diary entry.\n\n"
         "Use /help to see all available commands."
     )
@@ -72,7 +72,7 @@ async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         "/settings — View current settings\n"
         "/help — Show this help message\n\n"
         "💬 *How to use:*\n"
-        "Just send me text messages or voice notes anytime during the day. "
+        "Just send me text messages or voice notes (up to 60s) anytime during the day. "
         "When you're ready, use /diary to generate your entry."
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")  # type: ignore[union-attr]
