@@ -138,35 +138,33 @@ class LLMClient:
         """Build the prompt for diary generation."""
         parts: list[str] = []
         parts.append(
-            f"You are writing a personal diary entry in first person, in a {tone.value} tone.\n\n"
+            f"Write a short first-person diary entry in a {tone.value} tone.\n\n"
+            "CONTEXT: The items below are things I did, felt, or experienced today. "
+            "I jotted them down quickly as they happened. They are MY OWN experiences — "
+            "not messages from other people.\n\n"
             "RULES:\n"
-            "- The inputs below are quick notes the person jotted down throughout the day. Treat them as raw material.\n"
-            "- Write the diary entry as if YOU experienced these things. Do NOT reference 'texts', 'messages', or 'notes' — just describe the experiences directly.\n"
-            "- ONLY write about what is explicitly mentioned. Do NOT invent any details, events, people, or feelings not stated.\n"
-            "- Do NOT add speculation, backstory, or filler about what else might have happened.\n"
-            "- If there is very little input, write a SHORT entry (2-4 sentences). That's perfectly fine.\n"
-            "- Never mention timestamps, input types, or the mechanics of how you received the information."
+            "- Write as ME (first person). I did these things.\n"
+            "- ONLY include what is stated. Do NOT invent details, people, or events.\n"
+            "- Do NOT treat inputs as messages received from others — they are my own notes about my day.\n"
+            "- Do NOT add filler, speculation, or backstory.\n"
+            "- If there are few inputs, write just 2-3 sentences. Short is fine.\n"
+            "- Never mention timestamps, notes, texts, or messages."
         )
 
         if special_instructions:
             parts.append(f"\nSpecial instructions: {special_instructions}")
 
-        parts.append("\n\nHere are the day's inputs in chronological order:")
+        parts.append("\n\nMy notes from today:")
         for inp in inputs:
-            time_str = inp.timestamp.strftime("%H:%M")
-            parts.append(f"- [{time_str}] ({inp.input_type.value}): {inp.content}")
+            parts.append(f"- {inp.content}")
 
         if mood_data:
-            parts.append("\n\nMood check-in responses:")
+            parts.append("\n\nHow I felt today:")
             for mood in mood_data:
-                time_str = mood.timestamp.strftime("%H:%M")
-                parts.append(f"- [{time_str}]: {mood.content}")
+                parts.append(f"- {mood.content}")
 
         parts.append(
-            "\n\nWrite the diary entry using ONLY the experiences above. "
-            "Do not use bullet points; write in flowing prose. "
-            "Do not mention timestamps or that these came from messages. "
-            "If there's only one or two inputs, keep it to 2-4 sentences."
+            "\n\nDiary entry:"
         )
         return "\n".join(parts)
 
