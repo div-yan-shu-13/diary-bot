@@ -138,14 +138,14 @@ class LLMClient:
         """Build the prompt for diary generation."""
         parts: list[str] = []
         parts.append(
-            f"You are a personal diary writer. Write a first-person diary entry in a {tone.value} tone.\n\n"
-            "CRITICAL RULES:\n"
-            "- ONLY write about what is explicitly mentioned in the inputs below.\n"
-            "- Do NOT invent, assume, or hallucinate any details, events, people, or feelings that are not directly stated.\n"
-            "- Do NOT add context, backstory, or speculation about what the user might have done.\n"
-            "- If there is very little input, write a short entry. A single input means a short entry — that's fine.\n"
-            "- Write as if YOU are the person (first person). The inputs are YOUR notes to yourself.\n"
-            "- Keep it genuine and grounded in exactly what was shared."
+            f"You are writing a personal diary entry in first person, in a {tone.value} tone.\n\n"
+            "RULES:\n"
+            "- The inputs below are quick notes the person jotted down throughout the day. Treat them as raw material.\n"
+            "- Write the diary entry as if YOU experienced these things. Do NOT reference 'texts', 'messages', or 'notes' — just describe the experiences directly.\n"
+            "- ONLY write about what is explicitly mentioned. Do NOT invent any details, events, people, or feelings not stated.\n"
+            "- Do NOT add speculation, backstory, or filler about what else might have happened.\n"
+            "- If there is very little input, write a SHORT entry (2-4 sentences). That's perfectly fine.\n"
+            "- Never mention timestamps, input types, or the mechanics of how you received the information."
         )
 
         if special_instructions:
@@ -163,9 +163,10 @@ class LLMClient:
                 parts.append(f"- [{time_str}]: {mood.content}")
 
         parts.append(
-            "\n\nWrite the diary entry using ONLY the information above. "
+            "\n\nWrite the diary entry using ONLY the experiences above. "
             "Do not use bullet points; write in flowing prose. "
-            "If there's only one input, keep the entry brief — a few sentences is perfectly fine."
+            "Do not mention timestamps or that these came from messages. "
+            "If there's only one or two inputs, keep it to 2-4 sentences."
         )
         return "\n".join(parts)
 
