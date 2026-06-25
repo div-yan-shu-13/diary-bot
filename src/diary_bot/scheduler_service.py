@@ -98,10 +98,10 @@ class SchedulerService:
                 id="inactivity_reminder",
             )
 
-        # Add auto-diary generation at 10:30 PM user's timezone
+        # Add auto-diary generation at 10:30 PM IST (17:00 UTC)
         self._scheduler.add_job(
             self._diary_service.auto_generate_diary,
-            trigger=CronTrigger(hour=22, minute=30),
+            trigger=CronTrigger(hour=17, minute=0),
             args=[self._bot, self._authorized_user_id],
             id="auto_diary",
         )
