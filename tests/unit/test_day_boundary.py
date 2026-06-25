@@ -89,12 +89,23 @@ class TestGetEntryDate:
         ts = datetime(2024, 6, 15, 23, 59, 0, tzinfo=timezone.utc)
         assert service_utc.get_entry_date(ts) == date(2024, 6, 15)
 
-    def test_midnight_returns_new_date(self, service_utc):
-        ts = datetime(2024, 6, 16, 0, 0, 0, tzinfo=timezone.utc)
+    def test_before_3am_returns_previous_date(self, service_utc):
+        # 2:59 AM belongs to previous day
+        ts = datetime(2024, 6, 16, 2, 59, 0, tzinfo=timezone.utc)
+        assert service_utc.get_entry_date(ts) == date(2024, 6, 15)
+
+    def test_exactly_3am_returns_new_date(self, service_utc):
+        # 3:00 AM starts the new day
+        ts = datetime(2024, 6, 16, 3, 0, 0, tzinfo=timezone.utc)
         assert service_utc.get_entry_date(ts) == date(2024, 6, 16)
 
+    def test_midnight_returns_previous_date(self, service_utc):
+        # Midnight is before 3 AM, so belongs to previous day
+        ts = datetime(2024, 6, 16, 0, 0, 0, tzinfo=timezone.utc)
+        assert service_utc.get_entry_date(ts) == date(2024, 6, 15)
+
     def test_timezone_conversion(self, service_ist):
-        # 2024-06-15 23:00 UTC = 2024-06-16 04:30 IST
+        # 2024-06-15 23:00 UTC = 2024-06-16 04:30 IST (after 3 AM IST)
         ts = datetime(2024, 6, 15, 23, 0, 0, tzinfo=timezone.utc)
         assert service_ist.get_entry_date(ts) == date(2024, 6, 16)
 
@@ -131,14 +142,26 @@ class TestGetEntryDateAsync:
         assert result == date(2024, 6, 15)
 
     @pytest.mark.asyncio
-    async def test_after_midnight_always_new_date(self, service_utc):
+    async def test_after_midnight_before_3am_still_previous_day(self, service_utc):
         # Generate diary at 10:30 PM on June 15
         gen_ts = datetime(2024, 6, 15, 22, 30, 0, tzinfo=timezone.utc)
         await service_utc.mark_diary_generated(date(2024, 6, 15), gen_ts)
 
-        # Input at 12:30 AM on June 16 should be June 16
-        # (the state for June 15 doesn't affect June 16's own date)
+        # Input at 12:30 AM on June 16 — before 3 AM, so logical date is still June 15
+        # And since post-10PM diary was generated for June 15, it shifts to June 16
         input_ts = datetime(2024, 6, 16, 0, 30, 0, tzinfo=timezone.utc)
+        result = await service_utc.get_entry_date_async(input_ts)
+        assert result == date(2024, 6, 16)
+
+    @pytest.mark.asyncio
+    async def test_after_3am_always_new_day(self, service_utc):
+        # Generate diary at 10:30 PM on June 15
+        gen_ts = datetime(2024, 6, 15, 22, 30, 0, tzinfo=timezone.utc)
+        await service_utc.mark_diary_generated(date(2024, 6, 15), gen_ts)
+
+        # Input at 3:30 AM on June 16 — after 3 AM, so logical date is June 16
+        # No state for June 16, so it stays June 16
+        input_ts = datetime(2024, 6, 16, 3, 30, 0, tzinfo=timezone.utc)
         result = await service_utc.get_entry_date_async(input_ts)
         assert result == date(2024, 6, 16)
 
