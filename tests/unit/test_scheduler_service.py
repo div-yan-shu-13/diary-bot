@@ -53,11 +53,20 @@ def mock_bot():
 
 
 @pytest.fixture
+def mock_diary_service():
+    """Create a mock DiaryService."""
+    service = MagicMock()
+    service.auto_generate_diary = AsyncMock()
+    return service
+
+
+@pytest.fixture
 def scheduler_service(
     mock_scheduler,
     mock_mood_service,
     mock_memory_service,
     mock_reminder_service,
+    mock_diary_service,
     mock_bot,
 ):
     """Create a SchedulerService with all mock dependencies."""
@@ -66,6 +75,8 @@ def scheduler_service(
         mood_service=mock_mood_service,
         memory_service=mock_memory_service,
         reminder_service=mock_reminder_service,
+        diary_service=mock_diary_service,
+        authorized_user_id=12345,
         bot=mock_bot,
     )
 

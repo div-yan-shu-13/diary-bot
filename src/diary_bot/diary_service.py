@@ -72,8 +72,8 @@ class DiaryService:
     async def initiate_generation(self, timestamp: datetime) -> GenerationState:
         """Start the diary generation flow. Returns state indicating next step.
 
-        Determines the entry date, checks for post-10PM duplicate generation,
-        and verifies that inputs exist for the target date.
+        Determines the entry date and verifies that inputs exist for the target date.
+        No duplicate checking — /diary can always be run to regenerate.
 
         Args:
             timestamp: The current time when /diary was invoked.
@@ -82,32 +82,21 @@ class DiaryService:
             GenerationState indicating whether to proceed, or why not.
         """
         entry_date = await self._day_boundary.get_entry_date_async(timestamp)
-        is_post_10pm = self._day_boundary.is_post_10pm(timestamp)
 
-        # Post-10PM duplicate check (Req 11.6)
-        if is_post_10pm:
-            already_generated = await self._day_boundary.has_diary_been_generated_post_10pm(entry_date)
-            if already_generated:
-                return GenerationState(
-                    status=GenerationStatus.ALREADY_GENERATED,
-                    entry_date=entry_date,
-                    is_post_10pm=is_post_10pm,
-                )
-
-        # Check if there are any inputs for the entry date (Req 3.5)
+        # Check if there are any inputs for the entry date
         inputs = await self._repo.get_inputs_for_date(entry_date)
         if not inputs:
             return GenerationState(
                 status=GenerationStatus.NO_INPUTS,
                 entry_date=entry_date,
-                is_post_10pm=is_post_10pm,
+                is_post_10pm=False,
             )
 
         # Ready for generation — handler will ask for special instructions
         return GenerationState(
             status=GenerationStatus.READY,
             entry_date=entry_date,
-            is_post_10pm=is_post_10pm,
+            is_post_10pm=False,
         )
 
     async def generate_entry(
@@ -149,10 +138,39 @@ class DiaryService:
             entry_date, content, tone.value, special_instructions
         )
 
-        # Mark diary generated for day boundary tracking (Req 11.2)
+        # Mark diary generated for day boundary tracking
         await self._day_boundary.mark_diary_generated(entry_date, datetime.utcnow())
 
         return Ok(content)
+
+    async def auto_generate_diary(self, bot, user_id: int) -> None:
+        """Auto-generate diary at scheduled time (10:30 PM).
+
+        Generates a diary entry for today using all inputs collected so far.
+        Sends the result directly to the user. If no inputs exist, does nothing silently.
+
+        Args:
+            bot: The Telegram Bot instance.
+            user_id: The authorized user's Telegram ID.
+        """
+        from datetime import timezone as tz
+
+        now = datetime.now(tz.utc)
+        entry_date = self._day_boundary.get_entry_date(now)
+        inputs = await self._repo.get_inputs_for_date(entry_date)
+
+        if not inputs:
+            return  # No inputs today, skip silently
+
+        tone = await self.get_tone()
+        result = await self.generate_entry(entry_date, None, tone)
+
+        if isinstance(result, Ok):
+            await bot.send_message(
+                chat_id=user_id,
+                text=f"📔 *Your diary for today:*\n\n{result.value}",
+                parse_mode="Markdown",
+            )
 
     async def set_tone(self, tone_value: str) -> Result[Tone, ToneError]:
         """Set the user's tone preference.

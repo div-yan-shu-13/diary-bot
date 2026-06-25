@@ -173,8 +173,6 @@ def mock_day_boundary_generation():
     """Create a mock DayBoundaryService with generation-related methods."""
     boundary = MagicMock()
     boundary.get_entry_date_async = AsyncMock(return_value=date(2024, 1, 15))
-    boundary.is_post_10pm = MagicMock(return_value=False)
-    boundary.has_diary_been_generated_post_10pm = AsyncMock(return_value=False)
     boundary.mark_diary_generated = AsyncMock()
     return boundary
 
@@ -223,39 +221,6 @@ class TestInitiateGenerationNoInputs:
         mock_day_boundary_generation.get_entry_date_async.assert_called_once_with(timestamp)
 
 
-class TestInitiateGenerationAlreadyGenerated:
-    """Tests for initiate_generation when post-10PM and already generated."""
-
-    async def test_returns_already_generated_when_post_10pm_duplicate(
-        self, diary_service_generation, mock_day_boundary_generation, mock_repo_generation
-    ):
-        """When post-10PM and diary already generated, returns ALREADY_GENERATED."""
-        mock_day_boundary_generation.is_post_10pm.return_value = True
-        mock_day_boundary_generation.has_diary_been_generated_post_10pm.return_value = True
-        # Even if inputs exist, should still return already generated
-        mock_repo_generation.get_inputs_for_date.return_value = [
-            Input(id=1, entry_date=date(2024, 1, 15), content="test", timestamp=datetime(2024, 1, 15, 10, 0), input_type=InputType.TEXT)
-        ]
-        timestamp = datetime(2024, 1, 15, 22, 30, 0)
-
-        state = await diary_service_generation.initiate_generation(timestamp)
-
-        assert state.status == GenerationStatus.ALREADY_GENERATED
-        assert state.is_post_10pm is True
-
-    async def test_does_not_check_inputs_when_already_generated(
-        self, diary_service_generation, mock_day_boundary_generation, mock_repo_generation
-    ):
-        """When already generated post-10PM, does not query inputs."""
-        mock_day_boundary_generation.is_post_10pm.return_value = True
-        mock_day_boundary_generation.has_diary_been_generated_post_10pm.return_value = True
-        timestamp = datetime(2024, 1, 15, 22, 30, 0)
-
-        await diary_service_generation.initiate_generation(timestamp)
-
-        mock_repo_generation.get_inputs_for_date.assert_not_called()
-
-
 class TestInitiateGenerationReady:
     """Tests for initiate_generation when inputs exist (ready state)."""
 
@@ -272,14 +237,11 @@ class TestInitiateGenerationReady:
 
         assert state.status == GenerationStatus.READY
         assert state.entry_date == date(2024, 1, 15)
-        assert state.is_post_10pm is False
 
-    async def test_ready_post_10pm_first_generation(
+    async def test_can_always_regenerate(
         self, diary_service_generation, mock_day_boundary_generation, mock_repo_generation
     ):
-        """Post-10PM with inputs and no prior generation returns READY."""
-        mock_day_boundary_generation.is_post_10pm.return_value = True
-        mock_day_boundary_generation.has_diary_been_generated_post_10pm.return_value = False
+        """Diary can always be regenerated — no duplicate prevention."""
         mock_repo_generation.get_inputs_for_date.return_value = [
             Input(id=1, entry_date=date(2024, 1, 15), content="Late dinner", timestamp=datetime(2024, 1, 15, 21, 0), input_type=InputType.TEXT)
         ]
@@ -288,26 +250,6 @@ class TestInitiateGenerationReady:
         state = await diary_service_generation.initiate_generation(timestamp)
 
         assert state.status == GenerationStatus.READY
-        assert state.is_post_10pm is True
-
-
-class TestInitiateGenerationPre10PM:
-    """Tests for initiate_generation pre-10PM (no duplicate check)."""
-
-    async def test_pre_10pm_does_not_check_duplicate(
-        self, diary_service_generation, mock_day_boundary_generation, mock_repo_generation
-    ):
-        """Pre-10PM generation skips the has_diary_been_generated_post_10pm check."""
-        mock_day_boundary_generation.is_post_10pm.return_value = False
-        mock_repo_generation.get_inputs_for_date.return_value = [
-            Input(id=1, entry_date=date(2024, 1, 15), content="Hello", timestamp=datetime(2024, 1, 15, 10, 0), input_type=InputType.TEXT)
-        ]
-        timestamp = datetime(2024, 1, 15, 14, 0, 0)
-
-        state = await diary_service_generation.initiate_generation(timestamp)
-
-        assert state.status == GenerationStatus.READY
-        mock_day_boundary_generation.has_diary_been_generated_post_10pm.assert_not_called()
 
 
 class TestGenerateEntrySuccess:

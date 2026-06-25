@@ -155,6 +155,8 @@ async def _post_init(application: Application) -> None:
         mood_service=mood_service,
         memory_service=memory_service,
         reminder_service=reminder_service,
+        diary_service=diary_service,
+        authorized_user_id=config.authorized_user_id,
         bot=application.bot,
     )
 

@@ -146,12 +146,6 @@ async def handle_diary_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await message.reply_text("No inputs for today. Send me some messages first!")
         return
 
-    if state.status == GenerationStatus.ALREADY_GENERATED:
-        await message.reply_text(
-            "Diary already generated for today. New inputs will go toward tomorrow's entry."
-        )
-        return
-
     # READY: ask for special instructions
     keyboard = [
         [

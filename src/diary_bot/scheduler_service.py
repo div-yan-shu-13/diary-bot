@@ -12,6 +12,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
+from diary_bot.diary_service import DiaryService
 from diary_bot.memory_service import MemoryService
 from diary_bot.models import UserSettings
 from diary_bot.mood_service import MoodService
@@ -31,6 +32,8 @@ class SchedulerService:
         mood_service: MoodService,
         memory_service: MemoryService,
         reminder_service: ReminderService,
+        diary_service: DiaryService,
+        authorized_user_id: int,
         bot,  # noqa: ANN001
     ) -> None:
         """Initialize the scheduler service.
@@ -40,12 +43,16 @@ class SchedulerService:
             mood_service: Service for mood check-in operations.
             memory_service: Service for memory callback operations.
             reminder_service: Service for inactivity reminder operations.
+            diary_service: Service for diary generation operations.
+            authorized_user_id: The user's Telegram ID for sending messages.
             bot: The Telegram Bot instance used to send messages.
         """
         self._scheduler = scheduler
         self._mood_service = mood_service
         self._memory_service = memory_service
         self._reminder_service = reminder_service
+        self._diary_service = diary_service
+        self._authorized_user_id = authorized_user_id
         self._bot = bot
 
     async def setup_schedules(self, user_settings: UserSettings) -> None:
@@ -90,6 +97,14 @@ class SchedulerService:
                 args=[self._bot],
                 id="inactivity_reminder",
             )
+
+        # Add auto-diary generation at 10:30 PM user's timezone
+        self._scheduler.add_job(
+            self._diary_service.auto_generate_diary,
+            trigger=CronTrigger(hour=22, minute=30),
+            args=[self._bot, self._authorized_user_id],
+            id="auto_diary",
+        )
 
     async def update_mood_times(self, times: list[str]) -> None:
         """Reconfigure mood check-in schedule.
